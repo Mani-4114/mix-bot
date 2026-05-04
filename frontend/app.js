@@ -1,8 +1,6 @@
-// TODO: After deploying backend to Render, replace the URL below with your Render service URL
-// e.g. 'https://mix-bot-backend.onrender.com/api'
 const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://127.0.0.1:8000/api'
-    : 'https://mix-bot-backend.onrender.com/api';
+    : 'https://mix-bot-ew5v.onrender.com/api';
 
 // State
 let conversationHistory = [];
