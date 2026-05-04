@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MixBot: Admin Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .admin-section { margin-bottom: 2rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; color: white; }
+        th, td { padding: 0.8rem; text-align: left; border-bottom: 1px solid var(--glass-border); }
+        th { color: var(--gold); }
+        .danger-btn { background: rgba(255,50,50,0.2) !important; border: 1px solid rgba(255,50,50,0.5) !important; color: #ff6b6b !important; }
+        .danger-btn:hover { background: rgba(255,50,50,0.4) !important; }
+        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #1a1a2e; border: 1px solid var(--glass-border); padding: 2rem; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; color: white;}
+        .close-btn { float: right; cursor: pointer; font-size: 1.5rem; color: #ff6b6b; }
+        .chat-line-user { color: var(--gold); margin-bottom: 0.5rem; }
+        .chat-line-bot { color: #a0a0ff; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div id="particles-container"></div>
+    
+    <main class="container" style="max-width: 1400px;">
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem;">
+            <div>
+                <h1 style="margin-bottom: 0.5rem;"><a href="index.html" style="text-decoration: none; color: inherit;">MixBot Administrator</a></h1>
+                <p>System Management</p>
+            </div>
+            <div id="auth-section" style="display: flex; gap: 1rem; align-items: center;">
+                <span id="user-greeting" style="color: var(--gold); font-weight: bold;"></span>
+                <a href="index.html" class="glass-btn primary" style="padding: 0.5rem 1rem; font-size: 0.9rem; text-decoration: none;">Back to App</a>
+                <button id="logout-btn" class="glass-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem;">Logout</button>
+            </div>
+        </header>
+
+        <section id="unauthorized-msg" style="text-align: center; margin-top: 5rem; font-size: 1.5rem; color: #ff6b6b; display: none;">
+            Unauthorized Access. Only Admins can view this page.
+        </section>
+
+        <div id="admin-content" style="display: none;">
+            <div class="admin-section glass-panel">
+                <h2>Registered Users</h2>
+                <div style="overflow-x: auto;">
+                    <table id="users-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Users injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="admin-section glass-panel">
+                <h2>Global Recipe History</h2>
+                <div style="overflow-x: auto;">
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>History ID</th>
+                                <th>User Email</th>
+                                <th>Recipe Name</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- History injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="admin-section glass-panel">
+                <h2>Global Chat History</h2>
+                <div style="overflow-x: auto;">
+                    <table id="chat-history-table">
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th>User Email</th>
+                                <th>Title</th>
+                                <th>Updated At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Chats injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="chat-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-btn" onclick="document.getElementById('chat-modal').style.display='none'">&times;</span>
+                <h2>Chat Session</h2>
+                <div id="chat-modal-body" style="margin-top: 1rem;"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="particles.js"></script>
+    <script>
+        const API_URL = 'http://127.0.0.1:8000/api';
+        
+        function getAuthHeaders() {
+            const token = localStorage.getItem('mixbot_token');
+            if (!token) return { 'Content-Type': 'application/json' };
+            return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+        }
+
+        async function initAdmin() {
+            const token = localStorage.getItem('mixbot_token');
+            const isAdmin = localStorage.getItem('mixbot_is_admin') === 'true';
+            const name = localStorage.getItem('mixbot_user_name');
+
+            if (!token || !isAdmin) {
+                document.getElementById('unauthorized-msg').style.display = 'block';
+                document.getElementById('admin-content').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('user-greeting').innerText = `Admin: ${name}`;
+            document.getElementById('admin-content').style.display = 'block';
+
+            loadUsers();
+            loadHistory();
+            loadChatSessions();
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch(`${API_URL}/admin/users`, { headers: getAuthHeaders() });
+                if (!res.ok) throw new Error("Failed to load users");
+                const users = await res.json();
+                
+                const tbody = document.querySelector('#users-table tbody');
+                tbody.innerHTML = users.map(u => `
+                    <tr>
+                        <td>${u.id}</td>
+                        <td>${u.name}</td>
+                        <td>${u.email}</td>
+                        <td><span class="badge" style="background: ${u.is_admin ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255,255,255,0.1)'}">${u.is_admin ? 'Admin' : 'User'}</span></td>
+                        <td>
+                            <button onclick="toggleRole(${u.id}, ${u.is_admin})" class="glass-btn" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-right: 0.5rem;">${u.is_admin ? 'Demote' : 'Promote'}</button>
+                            <button onclick="deleteUser(${u.id})" class="glass-btn danger-btn" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        window.toggleRole = async function(id, currentIsAdmin) {
+            if (!confirm(`Are you sure you want to ${currentIsAdmin ? 'demote' : 'promote'} this user?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/admin/users/${id}/role`, { method: 'PATCH', headers: getAuthHeaders() });
+                if (res.ok) {
+                    loadUsers();
+                } else {
+                    const data = await res.json();
+                    alert(data.detail || "Failed to change role");
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        window.deleteUser = async function(id) {
+            if (!confirm(`Are you sure you want to delete user ${id}? This action cannot be undone.`)) return;
+            try {
+                const res = await fetch(`${API_URL}/admin/users/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+                if (res.ok) {
+                    loadUsers();
+                } else {
+                    const data = await res.json();
+                    alert(data.detail || "Failed to delete user");
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_URL}/admin/history`, { headers: getAuthHeaders() });
+                if (!res.ok) throw new Error("Failed to load history");
+                const history = await res.json();
+                
+                const tbody = document.querySelector('#history-table tbody');
+                tbody.innerHTML = history.map(h => {
+                    const dateStr = new Date(h.created_at.endsWith('Z') ? h.created_at : h.created_at + 'Z').toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+                    return `
+                    <tr>
+                        <td>${h.id}</td>
+                        <td>${h.user_email || 'Anonymous'}</td>
+                        <td>${h.recipe.name}</td>
+                        <td>${dateStr}</td>
+                        <td>
+                            <button onclick="deleteHistory(${h.id})" class="glass-btn danger-btn" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Delete</button>
+                        </td>
+                    </tr>
+                `}).join('');
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        window.deleteHistory = async function(id) {
+            if (!confirm(`Are you sure you want to delete history record ${id}?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/admin/history/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
+                if (res.ok) {
+                    loadHistory();
+                } else {
+                    alert("Failed to delete history");
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        async function loadChatSessions() {
+            try {
+                const res = await fetch(`${API_URL}/admin/chat_sessions`, { headers: getAuthHeaders() });
+                if (!res.ok) throw new Error("Failed to load chat history");
+                window.adminChats = await res.json();
+                
+                const tbody = document.querySelector('#chat-history-table tbody');
+                tbody.innerHTML = window.adminChats.map(c => {
+                    const dateStr = new Date(c.updated_at.endsWith('Z') ? c.updated_at : c.updated_at + 'Z').toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+                    return `
+                    <tr>
+                        <td title="${c.session_id}">${c.id}</td>
+                        <td>${c.user_email || 'Anonymous'}</td>
+                        <td>${c.title}</td>
+                        <td>${dateStr}</td>
+                        <td>
+                            <button onclick="viewChatSession('${c.session_id}')" class="glass-btn primary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; margin-right: 0.5rem;">View</button>
+                            <button onclick="deleteChatSession('${c.session_id}')" class="glass-btn danger-btn" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Delete</button>
+                        </td>
+                    </tr>
+                `}).join('');
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        window.viewChatSession = function(sessionId) {
+            try {
+                const chat = window.adminChats.find(c => c.session_id === sessionId);
+                if (!chat) return;
+                const history = chat.history_json;
+                const body = document.getElementById('chat-modal-body');
+                body.innerHTML = history.map(msg => {
+                    const isUser = msg.role === 'user';
+                    return `<div class="${isUser ? 'chat-line-user' : 'chat-line-bot'}">
+                                <strong>${isUser ? 'User' : 'MixBot'}:</strong> ${msg.text.replace(/\n/g, '<br>')}
+                            </div>`;
+                }).join('');
+                document.getElementById('chat-modal').style.display = 'flex';
+            } catch(e) {
+                console.error("Failed to parse chat data", e);
+            }
+        };
+
+        window.deleteChatSession = async function(sessionId) {
+            if (!confirm(`Are you sure you want to delete chat session ${sessionId}?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/admin/chat_sessions/${sessionId}`, { method: 'DELETE', headers: getAuthHeaders() });
+                if (res.ok) {
+                    loadChatSessions();
+                } else {
+                    alert("Failed to delete chat session");
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        };
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            localStorage.removeItem('mixbot_token');
+            localStorage.removeItem('mixbot_user_name');
+            localStorage.removeItem('mixbot_is_admin');
+            localStorage.removeItem('mixbot_chats');
+            window.location.href = 'index.html';
+        });
+
+        document.addEventListener('DOMContentLoaded', initAdmin);
+    </script>
+</body>
+</html>

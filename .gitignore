@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment & secrets
+.env
+*.env
+
+# Database (do not commit local DB)
+backend/history.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+error.log
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Node (just in case)
+node_modules/
