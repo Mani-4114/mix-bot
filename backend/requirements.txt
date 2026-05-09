@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
-google-generativeai
+openai
 python-dotenv
 pydantic
 sqlalchemy
